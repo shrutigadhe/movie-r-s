@@ -7,3 +7,8 @@ similarity.pkl
 recommender system/similarity.pkl
 
 recommender system/
+
+similarity.pkl
+*.pkl
+.ipynb_checkpoints/
+.vscode/
