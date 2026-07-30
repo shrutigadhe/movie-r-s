@@ -1,0 +1,7 @@
+venv
+similarity.pkl
+*.pkl
+
+similarity.pkl
+*.pkl
+recommender system/similarity.pkl
