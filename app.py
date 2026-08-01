@@ -50,6 +50,7 @@ def recommend(movie):
 
 
 # Load data files
+
 movies_dict = pickle.load(open('movies_dict.pkl', 'rb'))
 movies = pd.DataFrame(movies_dict)
 print("Your columns:", movies.columns.tolist())
