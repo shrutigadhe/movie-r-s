@@ -16,22 +16,22 @@ session.headers.update({
 })
 
 def fetch_poster(movie_id):
-    url = f'https://api.themoviedb.org/3/movie/{movie_id}?api_key=6c57e8b07041cdfde5801ee8f6ffdbb3&language=en-US'
+    api_key = st.secrets["TMDB_API_KEY"]
+
+    url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={api_key}&language=en-US"
+
     try:
         response = session.get(url, timeout=5)
         response.raise_for_status()
         data = response.json()
 
-        # Check if poster_path exists in response
-        if 'poster_path' in data and data['poster_path']:
-            return "https://image.tmdb.org/t/p/w500/" + data['poster_path']
-        else:
-            return "https://via.placeholder.com/500x750?text=No+Poster+Available"
+        if data.get("poster_path"):
+            return "https://image.tmdb.org/t/p/w500/" + data["poster_path"]
+
+        return "https://via.placeholder.com/500x750?text=No+Poster+Available"
 
     except Exception:
-        # Fallback placeholder if request fails or times out
         return "https://via.placeholder.com/500x750?text=Poster+Unavailable"
-
 
 def recommend(movie):
     movie_index = movies[movies['title'] == movie].index[0]
