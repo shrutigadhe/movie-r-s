@@ -1,7 +1,4 @@
-.venv/
-env/
-.idea/
-__pycache__/
-*.pyc
-.streamlit/secrets.toml
 similarity.pkl
+env/
+.ipynb_checkpoints/
+.vscode/

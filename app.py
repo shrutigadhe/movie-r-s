@@ -2,73 +2,72 @@ import streamlit as st
 import pickle
 import pandas as pd
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
+st.set_page_config(page_title="Movie Recommender System", layout="wide", page_icon="🎬")
 
-# Configure session with retries and a standard User-Agent header
-# This prevents TMDb from dropping connection (WinError 10054 / ConnectionResetError)
-session = requests.Session()
-retries = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
-session.mount('https://', HTTPAdapter(max_retries=retries))
-session.headers.update({
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-})
+@st.cache_resource
+def load_data_and_similarity():
+    # Load movies dictionary (2.2 MB)
+    with open('movies_dict.pkl', 'rb') as f:
+        movies_dict = pickle.load(f)
+    movies = pd.DataFrame(movies_dict)
+    
+    # Compute similarity matrix on startup (~1.4 seconds)
+    cv = CountVectorizer(max_features=5000, stop_words='english')
+    vectors = cv.fit_transform(movies['tags']).toarray()
+    similarity = cosine_similarity(vectors)
+    return movies, similarity
 
-def fetch_poster(movie_id):
-    api_key = st.secrets["TMDB_API_KEY"]
-
-    url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={api_key}&language=en-US"
-
+def fetch_poster(movie_id, api_key):
+    if not api_key:
+        return "https://via.placeholder.com/500x750?text=No+Poster"
     try:
-        response = session.get(url, timeout=5)
-        response.raise_for_status()
-        data = response.json()
-
-        if data.get("poster_path"):
-            return "https://image.tmdb.org/t/p/w500/" + data["poster_path"]
-
-        return "https://via.placeholder.com/500x750?text=No+Poster+Available"
-
+        url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={api_key}&language=en-US"
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            poster_path = data.get('poster_path')
+            if poster_path:
+                return "https://image.tmdb.org/t/p/w500/" + poster_path
     except Exception:
-        return "https://via.placeholder.com/500x750?text=Poster+Unavailable"
+        pass
+    return "https://via.placeholder.com/500x750?text=No+Poster"
+
+st.title("🎬 Movie Recommender System")
+st.write("Discover movies similar to your favorites using content-based filtering.")
+
+movies, similarity = load_data_and_similarity()
+
+# Optional TMDB API key input in sidebar
+st.sidebar.header("Configuration")
+tmdb_api_key = st.sidebar.text_input("TMDB API Key (Optional for Posters)", type="password", help="Enter your TMDB API key to fetch real movie posters.")
+
+selected_movie = st.selectbox(
+    "Select or type a movie name:",
+    movies['title'].values
+)
 
 def recommend(movie):
     movie_index = movies[movies['title'] == movie].index[0]
     distances = similarity[movie_index]
     movies_list = sorted(list(enumerate(distances)), reverse=True, key=lambda x: x[1])[1:6]
-
-    recommended_movies = []
-    recommended_movies_posters = []
-
+    
+    recommended_names = []
+    recommended_posters = []
     for i in movies_list:
-        movie_id = movies.iloc[i[0]].movie_id
-        recommended_movies.append(movies.iloc[i[0]].title)
-        recommended_movies_posters.append(fetch_poster(movie_id))
+        m_id = movies.iloc[i[0]].movie_id
+        recommended_names.append(movies.iloc[i[0]].title)
+        recommended_posters.append(fetch_poster(m_id, tmdb_api_key))
+    return recommended_names, recommended_posters
 
-    return recommended_movies, recommended_movies_posters
-
-
-# Load data files
-
-movies_dict = pickle.load(open('movies_dict.pkl', 'rb'))
-movies = pd.DataFrame(movies_dict)
-print("Your columns:", movies.columns.tolist())
-similarity = pickle.load(open('similarity.pkl', 'rb'))
-
-# Streamlit App UI
-st.title('Movie Recommender System')
-
-selected_movie_name = st.selectbox('Select a movie:', movies['title'].values)
-
-if st.button('Recommend'):
-    names, posters = recommend(selected_movie_name)
-
-    # Updated to modern Streamlit columns layout
+if st.button("Recommend"):
+    with st.spinner("Finding recommendations..."):
+        names, posters = recommend(selected_movie)
+    
     cols = st.columns(5)
-    for idx in range(5):
-        with cols[idx]:
-            st.text(names[idx])
-            st.image(posters[idx])
-
-
+    for idx, col in enumerate(cols):
+        with col:
+            st.caption(names[idx])
+            st.image(posters[idx], use_container_width=True)
